@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lookup Tracker: sources and licences</title>
+<style>
+:root{--paper:#f4f6f5;--ink:#17201d;--muted:#5d6b66;--accent:#0f6b5c;--line:#d7dedb}
+@media (prefers-color-scheme: dark){:root{--paper:#111715;--ink:#e8eeec;--muted:#9aa8a3;--accent:#4fc3ae;--line:#2e3a36;color-scheme:dark}}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:640px;margin:0 auto;padding:calc(16px + env(safe-area-inset-top)) 16px 40px}
+h1{font-size:22px;margin:0 0 4px} h2{font-size:17px;margin:28px 0 6px;padding-top:16px;border-top:1px solid var(--line)}
+p{margin:8px 0} a{color:var(--accent);overflow-wrap:anywhere} .back{display:inline-block;margin-bottom:16px;font-weight:600}
+small,.muted{color:var(--muted)} pre{white-space:pre-wrap;font-size:12px;color:var(--muted);margin:8px 0}
+</style>
+</head>
+<body>
+<main>
+<a class="back" href="./">&larr; Back to the dictionary</a>
+<h1>Sources and licences</h1>
+<p class="muted">Lookup Tracker is free, shows no advertising and is not sold. It combines data from the two projects below.</p>
+
+<h2>Words and definitions: JMdict</h2>
+<p>This app uses the <a href="https://www.edrdg.org/wiki/index.php/JMdict-EDICT_Dictionary_Project">JMdict/EDICT</a> dictionary file. This file is the property of the <a href="https://www.edrdg.org/">Electronic Dictionary Research and Development Group</a>, and is used in conformance with the Group's <a href="https://www.edrdg.org/edrdg/licence.html">licence</a>.</p>
+<p>JMdict is made available under the <a href="https://creativecommons.org/licenses/by-sa/4.0/">Creative Commons Attribution-ShareAlike 4.0</a> licence. The dictionary file this app downloads (data/dict.txt) is derived from JMdict and is offered under the same licence.</p>
+<p>The JSON edition of JMdict used to build it comes from the <a href="https://github.com/scriptin/jmdict-simplified">jmdict-simplified</a> project.</p>
+<p class="muted">The JMdict version in use and its date are shown on the Counts tab. The file is rebuilt from a newer JMdict from time to time, and the app offers the update when one is published.</p>
+
+<h2>Pitch accents: Wadoku</h2>
+<p>The pitch accent patterns come from <a href="https://www.wadoku.de">Wadoku</a> (www.wadoku.de), the Japanese-German dictionary project started by Ulrich Apel and carried on by him and the volunteers of Wadoku e.V. Copyright in the Wadoku data belongs to Ulrich Apel and the other contributors.</p>
+<p>The data is used under the Wadoku data licence, which permits free, non-commercial use with a full statement of its origin:</p>
+<p><a href="https://www.wadoku.de/wiki/display/WAD/Wadoku.de-Daten+Lizenz">Wadoku.de-Daten Lizenz</a> (the current data licence)<br>
+<a href="https://www.wadoku.de/wiki/pages/viewpage.action?pageId=357">WaDoku-Datei-Lizenz</a> (Ulrich Apel's original licence)</p>
+<p>What this app holds is an extract: for each word, its reading and its high/low pitch pattern. The extract was taken from the list of Wadoku accents distributed with the <a href="https://ankiweb.net/shared/info/148002038">Japanese Pitch Accent</a> add-on for Anki, and matched to JMdict entries by spelling and reading. Any mismatch between a word and its accent is this app's error, not Wadoku's.</p>
+
+<h2>Pitch accent drawings</h2>
+<p>The drawing code is a port of draw_pitch.py from the Japanese Pitch Accent add-on for Anki.</p>
+<pre>MIT License. Copyright (c) 2019 Tarek Saier.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</pre>
+
+<h2>Your data</h2>
+<p>Your lookups, wagers and known words are stored only on this device. This app sends them nowhere.</p>
+</main>
+</body>
+</html>

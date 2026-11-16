@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lookup Tracker</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Lookups">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f4f6f5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111715" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-180.png">
+<style>
+/* layout: one phone-width column; search on top, one working pane, three tabs pinned at the bottom */
+:root{
+  --paper:#f4f6f5; --card:#ffffff; --ink:#17201d; --muted:#5d6b66; --line:#d7dedb;
+  --accent:#0f6b5c; --accent-ink:#ffffff; --hidden:#e7ecea;
+  --good:#1f7a3d; --warn:#a15c00; --bad:#b3261e;
+  --jp:"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP","Noto Sans CJK JP",sans-serif;
+  --ui:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --paper:#111715; --card:#1a2220; --ink:#e8eeec; --muted:#9aa8a3; --line:#2e3a36;
+    --accent:#4fc3ae; --accent-ink:#06211c; --hidden:#232d2a;
+    --good:#6fd08c; --warn:#f0b35a; --bad:#ff8a80; color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--ui);font-size:16px;line-height:1.45;-webkit-text-size-adjust:100%}
+.app{max-width:520px;margin:0 auto;height:100%;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top)}
+main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px max(16px,env(safe-area-inset-right)) 20px max(16px,env(safe-area-inset-left));display:flex;flex-direction:column;gap:12px}
+/* Tabs: tall, and lifted clear of the iPhone's home-screen swipe bar */
+nav{display:flex;border-top:1px solid var(--line);background:var(--card);padding-bottom:max(10px,env(safe-area-inset-bottom))}
+nav button{flex:1;min-height:60px;padding:10px 4px;background:none;border:0;font:600 16px var(--ui);color:var(--muted);cursor:pointer;touch-action:manipulation}
+nav button[aria-current="true"]{color:var(--accent);box-shadow:inset 0 3px 0 var(--accent)}
+input[type=search],textarea{width:100%;font:400 18px var(--jp);color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:11px 12px;-webkit-appearance:none;appearance:none}
+textarea{font:400 16px var(--ui);min-height:64px;resize:vertical}
+input:focus,textarea:focus,button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.hint{font-size:13px;color:var(--muted);margin:0}
+.list{display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.row{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:0;border-bottom:1px solid var(--line);background:none;text-align:left;color:inherit;font:inherit;cursor:pointer;width:100%;touch-action:manipulation}
+.row:last-child{border-bottom:0}
+.row .w{font:500 18px var(--jp)} .row .r{font:400 14px var(--jp);color:var(--muted);margin-left:8px}
+.row .g{font-size:14px;color:var(--muted);overflow-wrap:anywhere}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:1px 8px;border-radius:99px;border:1px solid currentColor;white-space:nowrap}
+.known{color:var(--accent)} .lapse{color:var(--bad)} .check{color:var(--good)} .slip{color:var(--warn)} .plain{color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.close{flex:none;width:44px;height:44px;border-radius:99px;border:1px solid var(--line);background:var(--card);color:var(--muted);font:400 26px/1 var(--ui);cursor:pointer;touch-action:manipulation}
+h1{font:700 30px var(--jp);margin:0;overflow-wrap:anywhere} .reading{font:400 17px var(--jp);color:var(--muted);overflow-wrap:anywhere}
+.pitches{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
+.pitch-tile{background:#fff;border:1px solid var(--line);border-radius:8px;padding:4px 6px 0;line-height:0;overflow-x:auto;max-width:100%}
+.pitch-n{font-size:12px;color:var(--muted)}
+.sense{display:flex;flex-direction:column;gap:3px;padding-top:8px;border-top:1px solid var(--line);overflow-wrap:anywhere}
+.sense:first-child{border-top:0;padding-top:0}
+.pos{display:flex;flex-wrap:wrap;gap:4px} .pos span{font-size:12px;color:var(--muted);background:var(--hidden);border-radius:6px;padding:1px 6px}
+.pos span.m{background:none;border:1px solid var(--line)}
+.hiddenbox{background:var(--hidden);border-radius:8px;padding:12px;color:var(--muted);font-size:14px}
+.btn{font:600 15px var(--ui);padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;touch-action:manipulation}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn[disabled]{opacity:.5;cursor:default}
+.btns{display:flex;gap:8px;flex-wrap:wrap} .btns .btn{flex:1;min-width:96px}
+.link{background:none;border:0;padding:6px 0;color:var(--muted);font:400 13px var(--ui);text-decoration:underline;cursor:pointer;align-self:flex-start}
+.wagerlock{border-left:3px solid var(--accent);padding:2px 10px;font-size:15px;overflow-wrap:anywhere}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.tile b{display:block;font:600 24px var(--ui);font-variant-numeric:tabular-nums} .tile span{font-size:13px;color:var(--muted)}
+h2{font:600 15px var(--ui);margin:0;color:var(--muted)}
+.empty{color:var(--muted);font-size:14px;margin:0}
+.banner{background:var(--hidden);border-radius:10px;padding:10px 12px;font-size:14px;display:flex;gap:10px;align-items:center;justify-content:space-between}
+.banner.warn{border:1px solid var(--warn)}
+.credit{font-size:12px;color:var(--muted);margin-top:auto;padding-top:8px}
+.credit a,.card a{color:var(--accent)}
+.status{font-size:14px;color:var(--muted)}
+.kv{display:flex;justify-content:space-between;gap:12px;font-size:14px} .kv span:first-child{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="app">
+  <main id="main"><p class="status" id="boot">Starting…</p></main>
+  <nav>
+    <button id="tab-search" type="button">Search</button>
+    <button id="tab-history" type="button">History</button>
+    <button id="tab-counts" type="button">Counts</button>
+  </nav>
+</div>
+<input type="file" id="import-file" accept="application/json,.json" hidden>
+<script src="app.js"></script>
+</body>
+</html>
