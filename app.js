@@ -285,6 +285,40 @@ function pitchHtml(e) {
   return h ? '<div class="pitches">' + h + '</div>' : '<p class="hint">No pitch accent found for this word.</p>';
 }
 
+// Pitch notation for the suggestion list (Justin's chosen style, Nov 18): the
+// kana themselves, a line over high morae and under low ones, a vertical line
+// where the pitch changes, and a short tick after the last mora when the drop
+// falls on the following particle (odaka), so 橋 (LH, drop) and 端 (LH, flat)
+// look different. A pattern is H/L per mora plus one letter for the particle.
+// Returns null when the pattern doesn't fit the kana (then plain text is shown).
+function pitchNotation(kana, patt) {
+  const mora = pitchMorae(kana), p = Array.from(patt.toUpperCase()), n = mora.length;
+  if (!n || p.length < n) return null;
+  let h = '';
+  for (let i = 0; i < n; i++) {
+    const hi = p[i] === 'H';
+    let cls = 'mo ' + (hi ? 'hi' : 'lo');
+    if (i < n - 1 && (p[i + 1] === 'H') !== hi) cls += ' ch';
+    if (i === n - 1 && hi && p[n] === 'L') cls += ' od';
+    h += '<span class="' + cls + '">' + esc(mora[i]) + '</span>';
+  }
+  return '<span class="pn" title="accent ' + accentNumber(patt) + '">' + h + '</span>';
+}
+const MAX_ROW_ACCENTS = 3;
+// The word and reading part of a suggestion row, with the reading drawn in
+// pitch notation (every accent, up to three, side by side).
+function rowWordHtml(e) {
+  const kanaOnly = !e.k.length, r = e.r[0];
+  const drawn = (e.p && e.p[hira(r)] || []).slice(0, MAX_ROW_ACCENTS).map(patt => pitchNotation(r, patt)).filter(Boolean);
+  if (kanaOnly) {
+    // The word is its own reading: the first accent is drawn on the word, any others beside it.
+    const rest = drawn.slice(1).join('');
+    return '<span class="w">' + (drawn[0] || esc(r)) + '</span>' + (rest ? '<span class="r pns">' + rest + '</span>' : '') +
+      (e.r[1] ? '<span class="r">' + esc(e.r[1]) + '</span>' : '');
+  }
+  return '<span class="w">' + esc(head(e)) + '</span>' + (drawn.length ? '<span class="r pns">' + drawn.join('') + '</span>' : '<span class="r">' + esc(r) + '</span>');
+}
+
 // ---------------------------------------------------------------------------
 // The log (IndexedDB). Every write goes to disk at once; L mirrors it in
 // memory so the screens can be drawn without waiting.
@@ -371,15 +405,23 @@ function exportDue() {
   return last ? 'Your last export was ' + days + ' days ago.' : 'Your log has never been exported.';
 }
 
+// The search screen is the search box plus a pane under it. The box is made
+// once and never redrawn while it is on screen: replacing it while typing broke
+// the Japanese keyboard (so suggestions waited for 確定) and stopped a held
+// backspace after one character. Everything that changes is in the pane.
+function searchShell() {
+  return '<input id="q" type="search" placeholder="Search in kana or kanji" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" lang="ja">' +
+    '<div id="pane"></div>';
+}
 function viewSearch() {
-  let h = '<input id="q" type="search" placeholder="Search in kana or kanji" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" lang="ja" value="' + esc(S.q) + '">';
+  let h = '';
   if (S.error) h += '<div class="banner warn"><span>' + esc(S.error) + '</span></div>';
   if (!S.entry || S.q) {
     const res = search(S.q);
     if (S.q && res.length) {
       h += '<div class="list">' + res.map(({ e, via }) => {
         const k = L.known.has(e.id);
-        return '<button class="row" type="button" data-open="' + e.id + '"><span><span class="w">' + esc(head(e)) + '</span><span class="r">' + esc(e.k.length ? e.r[0] : (e.r[1] || '')) + '</span>' +
+        return '<button class="row" type="button" data-open="' + e.id + '"><span>' + rowWordHtml(e) +
           (k ? ' <span class="pill known">known</span>' : '') + '</span><span class="g">' + (k ? 'Definition hidden' : esc(firstGloss(e))) + (via ? ' · from ' + esc(S.q) : '') + '</span></button>';
       }).join('') + '</div>';
     } else if (S.q) {
@@ -458,9 +500,14 @@ function viewCounts() {
 function render() {
   ['search', 'history', 'counts'].forEach(t => $('tab-' + t).setAttribute('aria-current', S.tab === t));
   if (!D.ready) return;
-  const keep = document.activeElement && document.activeElement.id === 'q';
-  $('main').innerHTML = S.tab === 'search' ? viewSearch() : S.tab === 'history' ? viewHistory() : viewCounts();
-  if (keep && $('q')) { const q = $('q'); q.focus(); try { q.setSelectionRange(q.value.length, q.value.length); } catch (e) { /* not supported on search inputs everywhere */ } }
+  const main = $('main');
+  if (S.tab !== 'search') { main.innerHTML = S.tab === 'history' ? viewHistory() : viewCounts(); return; }
+  let q = $('q');
+  if (!q || !main.contains(q)) { main.innerHTML = searchShell(); q = $('q'); }
+  // Only a change made by the page (opening or closing an entry, a tab) is
+  // written into the box; while typing, the box is the source of S.q.
+  if (q.value !== S.q && !composing) q.value = S.q;
+  $('pane').innerHTML = viewSearch();
 }
 
 // ---------------------------------------------------------------------------
@@ -582,10 +629,13 @@ async function updateDict() {
 // ---------------------------------------------------------------------------
 // Wiring
 // ---------------------------------------------------------------------------
+// Suggestions follow every change in the box, including kana not yet
+// confirmed with 確定 (the box itself is never replaced; see searchShell).
 let composing = false;
+const onTyped = e => { if (e.target.id === 'q' && S.q !== e.target.value) { S.q = e.target.value; render(); } };
 $('main').addEventListener('compositionstart', () => { composing = true; });
-$('main').addEventListener('compositionend', e => { composing = false; if (e.target.id === 'q') { S.q = e.target.value; render(); } });
-$('main').addEventListener('input', e => { if (e.target.id === 'q' && !composing) { S.q = e.target.value; render(); } });
+$('main').addEventListener('compositionend', e => { composing = false; onTyped(e); });
+$('main').addEventListener('input', onTyped);
 $('main').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   if (b.dataset.open) { openEntry(Number(b.dataset.open), b.dataset.via); return; }
