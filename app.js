@@ -679,6 +679,6 @@ async function start() {
   }
   render();
   checkForUpdate();
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { /* offline start still works from the caches already made */ });
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => { /* offline start still works from the caches already made */ });
 }
 start();
