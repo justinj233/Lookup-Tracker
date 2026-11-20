@@ -11,7 +11,8 @@
  *   - The dictionary (data/dict.txt): in the browser's Cache storage, so it
  *     is downloaded once and works offline.
  *   - Your log: in IndexedDB, database "lookup-tracker":
- *       lookups  one record per entry you opened, filled in as you go
+ *       lookups  one record per entry you opened, filled in as you go;
+ *                tags: ["dev"] marks a lookup made while testing the app
  *       known    the words currently marked as known
  *       marks    every mark / unmark, with its time
  *       meta     last export time
@@ -384,7 +385,7 @@ const OUTCOME = {
 // ---------------------------------------------------------------------------
 // Screens
 // ---------------------------------------------------------------------------
-const S = { tab: 'search', q: '', entry: null, rec: null, revealed: false, justMarked: false, historyShown: 200, error: '', notice: '', update: null, protectedStorage: null };
+const S = { tab: 'search', q: '', staleText: '', entry: null, rec: null, revealed: false, justMarked: false, historyShown: 200, error: '', notice: '', update: null, protectedStorage: null };
 
 function sensesHtml(e) {
   return e.s.map(s => '<div class="sense"><div class="pos">' +
@@ -427,6 +428,7 @@ function viewSearch() {
     } else if (S.q) {
       h += '<p class="empty">No match. Try the dictionary form, or fewer characters.</p>';
     } else {
+      if (S.notice) h += '<div class="banner"><span>' + esc(S.notice) + '</span></div>';
       const due = exportDue();
       if (due) h += '<div class="banner warn"><span>' + esc(due) + '</span><button class="btn" type="button" data-tab="counts">Export</button></div>';
       if (S.update) h += '<div class="banner"><span>A newer dictionary is available.</span><button class="btn" type="button" id="update-dict">Update</button></div>';
@@ -461,6 +463,9 @@ function viewSearch() {
     }
   }
   if (k) h += '<button class="link" type="button" id="unmark">Unmark as known</button>';
+  if (rec) h += isDev(rec)
+    ? '<div class="btns" style="align-items:center"><span class="pill plain">dev</span><button class="link" type="button" id="dev-off">Remove the dev tag</button></div>'
+    : '<button class="link" type="button" id="dev-on">Tag this lookup as dev (testing)</button>';
   return h + '</div>' + creditHtml();
 }
 
@@ -470,7 +475,7 @@ function viewHistory() {
   const rows = L.lookups.slice(-S.historyShown).reverse();
   let h = '<div class="list">' + rows.map(r => {
     const o = OUTCOME[r.outcome] || [r.outcome, 'plain'];
-    return '<button class="row" type="button" data-open="' + r.id + '" data-via="history"><span><span class="w">' + esc(r.word) + '</span> <span class="pill ' + o[1] + '">' + esc(o[0]) + '</span></span>' +
+    return '<button class="row" type="button" data-open="' + r.id + '" data-via="history"><span><span class="w">' + esc(r.word) + '</span> <span class="pill ' + o[1] + '">' + esc(o[0]) + '</span>' + (isDev(r) ? ' <span class="pill plain">dev</span>' : '') + '</span>' +
       '<span class="g">' + esc(fmtTime(r.t)) + (r.wager ? ' · wager: ' + esc(r.wager) : '') + '</span></button>';
   }).join('') + '</div>';
   if (L.lookups.length > S.historyShown) h += '<button class="btn" type="button" id="more-history">Show older lookups</button>';
@@ -478,11 +483,13 @@ function viewHistory() {
 }
 
 function viewCounts() {
-  const n = p => L.lookups.filter(r => r.outcome.startsWith(p)).length;
+  const real = L.lookups.filter(r => !isDev(r)), dev = L.lookups.length - real.length;
+  const n = p => real.filter(r => r.outcome.startsWith(p)).length;
   const last = L.meta.lastExportAt;
   const v = D.head ? D.head.version : null;
-  let h = '<div class="tiles"><div class="tile"><b>' + L.known.size + '</b><span>Known words</span></div><div class="tile"><b>' + L.lookups.length + '</b><span>Lookups</span></div>' +
+  let h = '<div class="tiles"><div class="tile"><b>' + L.known.size + '</b><span>Known words</span></div><div class="tile"><b>' + real.length + '</b><span>Lookups</span></div>' +
     '<div class="tile"><b>' + n('check') + '</b><span>Checks</span></div><div class="tile"><b>' + n('lapse') + '</b><span>Lapses</span></div></div>';
+  if (dev) h += '<p class="hint">' + dev + ' lookup' + (dev === 1 ? '' : 's') + ' tagged dev (testing) not counted.</p>';
   if (S.notice) h += '<div class="banner"><span>' + esc(S.notice) + '</span></div>';
   if (S.error) h += '<div class="banner warn"><span>' + esc(S.error) + '</span></div>';
   h += '<div class="card"><h2>Your log</h2>' +
@@ -514,14 +521,21 @@ function render() {
 // Actions
 // ---------------------------------------------------------------------------
 async function openEntry(id, via) {
-  const e = entryById(id);
-  S.tab = 'search'; S.entry = id; S.revealed = false; S.justMarked = false;
+  const e = entryById(id), box = $('q');
+  // Tapping a result while the kana are still unconfirmed makes the keyboard
+  // confirm them a moment later. That arrives as typing and used to bring the
+  // list back over the entry (LT 998 bug: the lookup was logged, the entry
+  // vanished, the second tap logged it again). Remember the text so the late
+  // confirm is ignored (see onTyped), and close the keyboard (J9 a).
+  S.staleText = box ? box.value : '';
+  S.tab = 'search'; S.entry = id; S.revealed = false; S.justMarked = false; S.notice = '';
   const typed = S.q; S.q = '';
   if (!e) { S.rec = null; render(); return; }
   const known = L.known.has(id);
   const rec = { t: Date.now(), id: id, word: head(e), reading: e.r[0], q: via === 'history' ? '' : typed, via: via || 'search', known: known, outcome: known ? 'not-revealed' : 'lookup' };
   S.rec = rec; L.lookups.push(rec);
   render();
+  if (box) { box.blur(); composing = false; box.value = ''; }
   $('main').scrollTop = 0;
   try { await saveLookup(rec); } catch (err) { writeFailed(err); }
 }
@@ -551,11 +565,21 @@ async function setKnown(on) {
     else await tx('known', 'readwrite', s => s.delete(e.id));
   } catch (err) { writeFailed(err); }
 }
+const isDev = r => Array.isArray(r.tags) && r.tags.includes('dev');
+async function setDev(on) {
+  const rec = S.rec; if (!rec) return;
+  const tags = (rec.tags || []).filter(t => t !== 'dev');
+  if (on) tags.push('dev');
+  if (tags.length) rec.tags = tags; else delete rec.tags;
+  render();
+  try { await saveLookup(rec); } catch (err) { writeFailed(err); }
+}
 function closeEntry() { S.entry = null; S.q = ''; S.rec = null; S.revealed = false; S.justMarked = false; render(); if ($('q')) $('q').focus(); }
 
 function exportData() {
   return { app: 'lookup-tracker', format: 1, exportedAt: new Date().toISOString(), dictionary: D.head ? D.head.version : null,
-    known: Array.from(L.known.values()), marks: L.marks, lookups: L.lookups };
+    known: Array.from(L.known.values()), marks: L.marks, lookups: L.lookups,
+    removedDuplicates: L.meta.removedDuplicates || [] };
 }
 async function doExport() {
   const name = 'lookup-tracker-' + new Date().toISOString().slice(0, 10) + '.json';
@@ -609,6 +633,30 @@ async function doImport(file) {
   render();
 }
 
+// One-time cleanup (LT 996, J10 b) of lookups double-counted by the LT 998
+// bug: the first of two opens of the same word, from the same typed text, less
+// than 10 s apart, where nothing was revealed, wagered or graded on the first.
+// The removed records are kept in meta (removedDuplicates) and go into every
+// export, so nothing is lost.
+const CLEANUP_KEY = 'cleanupDoubleOpen998';
+async function cleanupDoubleOpens() {
+  if (L.meta[CLEANUP_KEY]) return;
+  const all = L.lookups.slice().sort((a, b) => a.t - b.t), gone = [];
+  for (let i = 0; i + 1 < all.length; i++) {
+    const a = all[i], b = all[i + 1];
+    if (a.id === b.id && a.q && a.q === b.q && a.via === 'search' && b.via === 'search' && b.t - a.t < 10000 &&
+        (a.outcome === 'lookup' || a.outcome === 'not-revealed') && !a.revealedAt && !a.wager && !a.gradedAt) gone.push(a);
+  }
+  try {
+    for (const r of gone) await tx('lookups', 'readwrite', s => s.delete(r.n));
+    const drop = new Set(gone);
+    L.lookups = L.lookups.filter(r => !drop.has(r));
+    await setMeta('removedDuplicates', (L.meta.removedDuplicates || []).concat(gone));
+    await setMeta(CLEANUP_KEY, Date.now());
+    if (gone.length) S.notice = 'Removed ' + gone.length + ' lookup' + (gone.length === 1 ? '' : 's') + ' counted twice by an earlier bug (an entry that opened and closed by itself). They are kept in your exports under "removedDuplicates".';
+  } catch (e) { writeFailed(e); }
+}
+
 async function checkForUpdate() {
   try {
     const r = await fetch(VERSION_URL, { cache: 'no-store' });
@@ -632,7 +680,16 @@ async function updateDict() {
 // Suggestions follow every change in the box, including kana not yet
 // confirmed with 確定 (the box itself is never replaced; see searchShell).
 let composing = false;
-const onTyped = e => { if (e.target.id === 'q' && S.q !== e.target.value) { S.q = e.target.value; render(); } };
+const onTyped = e => {
+  if (e.target.id !== 'q') return;
+  if (S.staleText) {
+    // The keyboard confirming the text of a result already opened: drop it.
+    // Real typing builds up a character at a time, so it never matches.
+    if (S.entry && S.q === '' && e.target.value === S.staleText) { e.target.value = ''; return; }
+    S.staleText = '';
+  }
+  if (S.q !== e.target.value) { S.q = e.target.value; render(); }
+};
 $('main').addEventListener('compositionstart', () => { composing = true; });
 $('main').addEventListener('compositionend', e => { composing = false; onTyped(e); });
 $('main').addEventListener('input', onTyped);
@@ -644,6 +701,8 @@ $('main').addEventListener('click', e => {
   if (b.id === 'close') closeEntry();
   else if (b.id === 'mark') setKnown(true);
   else if (b.id === 'unmark') setKnown(false);
+  else if (b.id === 'dev-on') setDev(true);
+  else if (b.id === 'dev-off') setDev(false);
   else if (b.id === 'reveal') reveal();
   else if (b.id === 'export') doExport();
   else if (b.id === 'import') $('import-file').click();
@@ -677,6 +736,7 @@ async function start() {
     $('main').innerHTML = '<div class="banner warn"><span>' + esc(e.message || String(e)) + ' Connect to the internet and open the app again.</span></div>';
     return;
   }
+  await cleanupDoubleOpens();
   render();
   checkForUpdate();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => { /* offline start still works from the caches already made */ });
